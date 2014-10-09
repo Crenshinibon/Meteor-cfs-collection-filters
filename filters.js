@@ -113,41 +113,48 @@ FS.Collection.prototype.allowsFile = function fsColAllowsFile(fileObj) {
   if (!filter) {
     return true;
   }
+  
   var saveAllFileExtensions = (filter.allow.extensions.length === 0);
+  var checkFileExtensions = !saveAllFileExtensions
   var saveAllContentTypes = (filter.allow.contentTypes.length === 0);
-
-  // Get info about the file
-  var filename = fileObj.name();
-  var contentType = fileObj.type();
-  if (!contentType) {
-    filter.onInvalid && filter.onInvalid(filename + " has an unknown content type");
-    return false;
+  var checkContentTypes = !saveAllContentTypes
+  
+  if (checkFileExtensions || checkContentTypes) {
+    // Get info about the file
+    var filename = fileObj.name();
+    var contentType = fileObj.type();
+    if (!contentType) {
+      filter.onInvalid && filter.onInvalid(filename + " has an unknown content type");
+      return false;
+    }
+    
+    // Do extension checks only if we have a filename
+    if (filename) {
+      var ext = fileObj.getExtension();
+      if (!((saveAllFileExtensions ||
+              FS.Utility.indexOf(filter.allow.extensions, ext) !== -1) &&
+              FS.Utility.indexOf(filter.deny.extensions, ext) === -1)) {
+        filter.onInvalid && filter.onInvalid(filename + ' has the extension "' + ext + '", which is not allowed');
+        return false;
+      }
+    }
+  
+    // Do content type checks
+    if (!((saveAllContentTypes ||
+            contentTypeInList(filter.allow.contentTypes, contentType)) &&
+            !contentTypeInList(filter.deny.contentTypes, contentType))) {
+      filter.onInvalid && filter.onInvalid(filename + ' is of the type "' + contentType + '", which is not allowed');
+      return false;
+    }
   }
+  
+  // Get the file's size
   var fileSize = fileObj.size();
   if (!fileSize || isNaN(fileSize)) {
     filter.onInvalid && filter.onInvalid(filename + " has an unknown file size");
     return false;
   }
-
-  // Do extension checks only if we have a filename
-  if (filename) {
-    var ext = fileObj.getExtension();
-    if (!((saveAllFileExtensions ||
-            FS.Utility.indexOf(filter.allow.extensions, ext) !== -1) &&
-            FS.Utility.indexOf(filter.deny.extensions, ext) === -1)) {
-      filter.onInvalid && filter.onInvalid(filename + ' has the extension "' + ext + '", which is not allowed');
-      return false;
-    }
-  }
-
-  // Do content type checks
-  if (!((saveAllContentTypes ||
-          contentTypeInList(filter.allow.contentTypes, contentType)) &&
-          !contentTypeInList(filter.deny.contentTypes, contentType))) {
-    filter.onInvalid && filter.onInvalid(filename + ' is of the type "' + contentType + '", which is not allowed');
-    return false;
-  }
-
+  
   // Do max size check
   if (typeof filter.maxSize === "number" && fileSize > filter.maxSize) {
     filter.onInvalid && filter.onInvalid(filename + " is too big");
